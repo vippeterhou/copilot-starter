@@ -1,0 +1,41 @@
+{
+  "name": "copilot-starter",
+  "version": "1.0.0",
+  "description": "A beautiful terminal UI for managing GitHub Copilot CLI sessions — start new or resume past conversations",
+  "main": "index.js",
+  "bin": {
+    "copilot-starter": "./index.js"
+  },
+  "scripts": {
+    "start": "node index.js",
+    "test": "node --test test.js"
+  },
+  "keywords": [
+    "copilot",
+    "github-copilot",
+    "copilot-cli",
+    "tui",
+    "terminal",
+    "session",
+    "resume",
+    "ai",
+    "ai-native",
+    "developer-workflow",
+    "local-first",
+    "agentic-tooling"
+  ],
+  "author": "",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
+  "files": [
+    "index.js",
+    "README.md"
+  ],
+  "dependencies": {
+    "blessed": "^0.1.81",
+    "blessed-contrib": "^4.11.0",
+    "string-width": "^4.2.3"
+  }
+}
