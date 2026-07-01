@@ -74,6 +74,7 @@ Searches across **everything** — project names, Git branches, conversation con
 | 📎 | **Copy ID** | Press `c` to copy session ID |
 | 🔒 | **Launch Modes** | Press `m` to configure, `d` for quick allow-all (danger) resume |
 | ✏️ | **Rename Sessions** | Press `r` to rename, supports CJK input |
+| 🏷️ | **Title Sources** | Tells your own renames (`✎`, teal) apart from Copilot's auto summaries (white) and first-message fallbacks (dim) |
 | 🗑️ | **Hide Sessions** | Press `x` to remove sessions from the list |
 | ⌨️ | **Vim Keybindings** | `j`/`k` navigate, `g`/`G` jump to top/bottom |
 | 🧠 | **Smart CLI** | Auto-detects `mai-copilot` vs `copilot` |
@@ -208,6 +209,7 @@ copilot-starter
 | 📎 | **复制 ID** | `c` 一键复制到剪贴板 |
 | 🔒 | **启动模式** | `m` 设置启动模式，`d` 一键 allow-all 危险模式恢复 |
 | ✏️ | **重命名会话** | `r` 直接重命名，支持中文输入 |
+| 🏷️ | **标题来源区分** | 区分你自己的重命名（`✎`，青色）、Copilot 自动摘要（白色）和首条消息回退（暗色） |
 | 🗑️ | **隐藏会话** | `x` 从列表中移除会话 |
 | ⌨️ | **Vim 快捷键** | `j`/`k` 上下，`g`/`G` 跳顶/底 |
 | 🧠 | **智能 CLI** | 自动检测 `mai-copilot` / `copilot` |

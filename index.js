@@ -313,7 +313,7 @@ function buildSession(row) {
     repository,
     topic: topic || '(no user messages)',
     summary: (row.summary || '').trim(),
-    customTitle: '',
+    userTitle: '',
     permissionMode: '',
     firstTs, lastTs,
     version: '',
@@ -450,10 +450,23 @@ function esc(text) {
   return text.replace(/[{}]/g, m => m === '{' ? '{open}' : '{close}');
 }
 
+// Resolve which title to show and where it came from:
+//   'user'    → a title the user typed via rename (stored in meta)
+//   'summary' → Copilot's own auto-generated session summary
+//   'message' → fallback to the first user message
+function titleInfo(meta, session) {
+  const sm = meta && meta.sessions ? meta.sessions[session.sessionId] : null;
+  const userTitle = (sm && sm.customTitle) || session.userTitle || '';
+  if (userTitle) return { text: userTitle, source: 'user' };
+  if (session.summary) return { text: session.summary, source: 'summary' };
+  return { text: session.topic || '', source: 'message' };
+}
+
 // ─── CLI Mode (--list) ───────────────────────────────────────────────────────
 
 function runListMode(limit) {
   const sessions = loadAllSessions();
+  const meta = loadMeta();
   const display = sessions.slice(0, limit || 30);
   const C = {
     reset: '\x1b[0m', dim: '\x1b[2m', bold: '\x1b[1m',
@@ -465,7 +478,13 @@ function runListMode(limit) {
   console.log(`${C.bold}${'#'.padStart(3)}  ${'Time'.padEnd(18)} ${'Project'.padEnd(18)} ${'Branch'.padEnd(22)} ${'Msgs'.padStart(5)}  ${'Size'.padStart(6)}  Topic${C.reset}`);
   console.log(`${C.dim}${'─'.repeat(100)}${C.reset}`);
   display.forEach((s, i) => {
-    console.log(`${C.dim}${`${i+1}`.padStart(3)}${C.reset}  ${C.yellow}${formatTimestamp(s.lastTs).padEnd(18)}${C.reset} ${C.magenta}${s.project.substring(0,17).padEnd(18)}${C.reset} ${C.green}${(s.gitBranch||'').substring(0,21).padEnd(22)}${C.reset} ${C.blue}${`${s.estimatedMessages}`.padStart(5)}${C.reset}  ${C.dim}${formatFileSize(s.fileSize).padStart(6)}${C.reset}  ${C.white}${(s.summary||s.topic).substring(0,40)}${C.reset}`);
+    const ti = titleInfo(meta, s);
+    const topicCol = ti.source === 'user'
+      ? `${C.cyan}${C.bold}✎ ${ti.text.substring(0,38)}${C.reset}`
+      : ti.source === 'summary'
+        ? `${C.white}${ti.text.substring(0,40)}${C.reset}`
+        : `${C.dim}${ti.text.substring(0,40)}${C.reset}`;
+    console.log(`${C.dim}${`${i+1}`.padStart(3)}${C.reset}  ${C.yellow}${formatTimestamp(s.lastTs).padEnd(18)}${C.reset} ${C.magenta}${s.project.substring(0,17).padEnd(18)}${C.reset} ${C.green}${(s.gitBranch||'').substring(0,21).padEnd(22)}${C.reset} ${C.blue}${`${s.estimatedMessages}`.padStart(5)}${C.reset}  ${C.dim}${formatFileSize(s.fileSize).padStart(6)}${C.reset}  ${topicCol}`);
   });
   console.log(`${C.dim}${'─'.repeat(100)}${C.reset}`);
   console.log(`\n${C.dim}Resume: ${C.cyan}${CLI.name} --resume=<session-id>${C.reset}\n`);
@@ -477,14 +496,12 @@ function createApp() {
   const allSessions = loadAllSessions();
   const meta = loadMeta();
 
-  // Determine each session's display subtitle: a user rename (meta) wins,
-  // otherwise fall back to Copilot's own auto-generated session summary.
+  // Attach any user-provided rename (stored in meta). We keep this separate
+  // from Copilot's own auto-generated summary so the UI can tell them apart.
   for (const session of allSessions) {
     const sm = meta.sessions[session.sessionId];
     if (sm && sm.customTitle) {
-      session.customTitle = sm.customTitle;
-    } else if (session.summary) {
-      session.customTitle = session.summary;
+      session.userTitle = sm.customTitle;
     }
   }
 
@@ -651,16 +668,20 @@ function createApp() {
       const time = `{#e0af68-fg}${formatTimestamp(session.lastTs).padEnd(16)}{/}`;
 
       const fixedLen = 1 + 12 + 1 + 16 + 1 + 3;
-      const topicMaxLen = Math.max(10, listW - fixedLen);
-      let topic = session.customTitle || session.topic;
+      const ti = titleInfo(meta, session);
+      const marker = ti.source === 'user' ? '✎ ' : '';
+      const topicMaxLen = Math.max(10, listW - fixedLen - marker.length);
+      let topic = ti.text;
 
       if (topic.length > topicMaxLen) topic = topic.substring(0, topicMaxLen) + '…';
 
       let label = `${modeIcon}${proj} ${time} `;
-      if (session.customTitle) {
-        label += `{#73daca-fg}{bold}${esc(topic)}{/}`;
-      } else {
+      if (ti.source === 'user') {
+        label += `{#73daca-fg}{bold}${marker}${esc(topic)}{/}`;
+      } else if (ti.source === 'summary') {
         label += `{#a9b1d6-fg}${esc(topic)}{/}`;
+      } else {
+        label += `{#565f89-fg}${esc(topic)}{/}`;
       }
 
       return label;
@@ -705,9 +726,9 @@ function createApp() {
     const session = filteredSessions[selectedIndex];
     loadSessionDetail(session);
 
-    // Meta customTitle takes priority over JSONL
+    // Sync any user rename from meta onto the session
     const sm = meta.sessions[session.sessionId];
-    if (sm && sm.customTitle) session.customTitle = sm.customTitle;
+    if (sm && sm.customTitle) session.userTitle = sm.customTitle;
 
     const color = getProjectColor(session.project, projectColorMap);
     let c = '';
@@ -715,8 +736,13 @@ function createApp() {
 
     // Title
     c += `\n {${color}-fg}{bold}█ ${session.project}{/}\n`;
-    if (session.customTitle) {
-      c += ` {#73daca-fg}{bold}${esc(session.customTitle)}{/}\n`;
+    const ti = titleInfo(meta, session);
+    if (ti.source === 'user') {
+      c += ` {#73daca-fg}{bold}✎ ${esc(ti.text)}{/} {#565f89-fg}(your name){/}\n`;
+    } else if (ti.source === 'summary') {
+      c += ` {#a9b1d6-fg}${esc(ti.text)}{/} {#565f89-fg}(auto summary){/}\n`;
+    } else {
+      c += ` {#565f89-fg}${esc(ti.text)}{/} {#414868-fg}(first message){/}\n`;
     }
     c += sep + '\n\n';
 
@@ -803,7 +829,7 @@ function createApp() {
     } else {
       const terms = filterText.toLowerCase().split(/\s+/);
       filteredSessions = allSessions.filter(s => {
-        const haystack = [s.project, s.topic, s.customTitle || '', s.gitBranch || '', s.sessionId, ...(s.userMessages || [])].join(' ').toLowerCase();
+        const haystack = [s.project, s.topic, s.userTitle || '', s.summary || '', s.gitBranch || '', s.sessionId, ...(s.userMessages || [])].join(' ').toLowerCase();
 
         return terms.every(t => {
           return haystack.includes(t);
@@ -1289,7 +1315,7 @@ function createApp() {
   }
 
   function showDeleteConfirm(session) {
-    const topic = (session.customTitle || session.topic || '').substring(0, 30);
+    const topic = (session.userTitle || session.summary || session.topic || '').substring(0, 30);
     const confirmPopup = blessed.box({
       parent: screen, top: 'center', left: 'center',
       width: 50, height: 9,
@@ -1350,7 +1376,7 @@ function createApp() {
 
   function showRenameInput(session) {
     renameSession = session;
-    renameValue = session.customTitle || '';
+    renameValue = session.userTitle || '';
 
     renamePopup = blessed.box({
       parent: screen, top: 'center', left: 'center',
@@ -1400,8 +1426,8 @@ function createApp() {
     if (!newTitle) delete meta.sessions[session.sessionId].customTitle;
     saveMeta(meta);
 
-    // Update in-memory session (fall back to Copilot's summary if cleared)
-    session.customTitle = newTitle || session.summary || '';
+    // Update in-memory session (empty clears back to summary/first-message)
+    session.userTitle = newTitle || '';
 
     renderAll();
 
