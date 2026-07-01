@@ -30,8 +30,7 @@
     "node": ">=18"
   },
   "files": [
-    "index.js",
-    "README.md"
+    "index.js"
   ],
   "dependencies": {
     "blessed": "^0.1.81",
