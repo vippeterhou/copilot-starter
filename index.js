@@ -320,6 +320,7 @@ function buildSession(row) {
     gitBranch: row.branch || '',
     cwd,
     stateDir,
+    hasState,
     filePath: eventsPath,
     fileSize: hasState ? folderSize(stateDir) : 0,
     duration,
@@ -401,6 +402,10 @@ function loadAllSessions() {
       if (meta.hidden && meta.hidden[row.id]) continue;
       const session = buildSession(row);
       if (!session.firstTs) continue;
+      // Skip sessions whose on-disk state was deleted: the DB row lingers but
+      // the session-state folder (events.jsonl/workspace.yaml) is gone, so it
+      // can no longer be resumed. These are the "deleted / not accessible" ones.
+      if (!session.hasState) continue;
       // Skip empty shells: no conversation turns and no summary.
       if (session.estimatedMessages === 0 && !session.summary) continue;
       if (excludePatterns.some(re => re.test(session.topic))) continue;
